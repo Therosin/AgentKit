@@ -1,0 +1,28 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+
+version: "3"
+
+dotenv:
+  - .env
+
+tasks:
+  default:
+    cmds:
+      - task --list-all
+    silent: true
+
+  build:
+    cmds:
+      - bun run build
+
+  test:
+    cmds:
+      - bun run test
+
+  test:unit:
+    cmds:
+      - bun run test:unit
+
+  test:e2e:
+    cmds:
+      - bun run test:e2e

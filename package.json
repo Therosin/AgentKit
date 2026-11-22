@@ -1,0 +1,48 @@
+{
+  "name": "agentkit",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "bun": "./index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./shared": {
+      "bun": "./src/shared/index.ts",
+      "types": "./dist/src/shared/index.d.ts",
+      "import": "./dist/src/shared/index.js",
+      "default": "./dist/src/shared/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "index.ts"
+  ],
+  "scripts": {
+    "build": "bun run build:js && bun run build:types",
+    "build:js": "bun build ./index.ts ./src/shared/index.ts --outdir ./dist --target node --format esm --packages external --splitting",
+    "build:types": "tsc --declaration --emitDeclarationOnly --noEmit false --outDir ./dist",
+    "prepack": "bun run build",
+    "test": "bun test ./tests",
+    "test:unit": "bun test ./tests/context.test.ts ./tests/text-templates.test.ts ./tests/provider.test.ts ./tests/agent.unit.test.ts",
+    "test:e2e": "bun test ./tests/agent.e2e.test.ts",
+    "typecheck": "bun check"
+  },
+  "dependencies": {
+    "@ai-sdk/openai-compatible": "^3.0.94",
+    "ai": "^7.0.179",
+    "json-schema-to-typescript": "^16.0.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^7"
+  }
+}
