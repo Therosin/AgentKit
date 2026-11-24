@@ -236,6 +236,35 @@ describe('Tool integration via prepareTools', () => {
         expect(agent.secure.get(result.password)).toBe('cached-secret');
     });
 
+    test('rejects secure output that cannot be cloned without calling toJSON', async () => {
+        const agent = new (class extends Agent {
+            public exposePrepareTools() { return this.prepareTools(); }
+        })(dummyProvider, { model: 'm' });
+        let toJSONCalls = 0;
+        const sharedOutput = {
+            password: 'secret-that-must-not-leak',
+            toJSON() {
+                toJSONCalls++;
+                return { value: this.password };
+            },
+        };
+        const producer = (tool as any)({
+            description: 'produce output with a serialization hook',
+            inputSchema: z.object({}),
+            secure: ['password'],
+            execute: async () => sharedOutput,
+        });
+        agent.registerTools({ producer });
+
+        const prepared = agent.exposePrepareTools();
+        await expect((prepared.definitions.producer as any).execute({}, {}))
+            .rejects.toThrow('Secure output could not be safely cloned.');
+
+        expect(toJSONCalls).toBe(0);
+        expect(sharedOutput.password).toBe('secret-that-must-not-leak');
+        expect(agent.secure.size).toBe(0);
+    });
+
     test('outputSchema preserved on tool def', () => {
         const agent = new (class extends Agent {
             public exposePrepareTools() { return this.prepareTools(); }

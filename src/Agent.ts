@@ -84,6 +84,16 @@ function redactStructuredOutputError(error: unknown): Error {
     return safe;
 }
 
+function cloneSecureToolOutput(value: unknown): unknown {
+    if (!value || typeof value !== 'object') return value;
+    try {
+        return structuredClone(value);
+    } catch {
+        // JSON serialization may invoke toJSON and change or omit secure paths.
+        throw new Error('Secure output could not be safely cloned.');
+    }
+}
+
 /** Merge concurrently consumed SDK streams without polling. */
 class AsyncEventQueue<T> {
     private readonly items: T[] = [];
@@ -265,7 +275,7 @@ export default class Agent {
                         }
                         const raw = await execute(resolvedInput, { ...options, secure: this.secure });
                         if (secure && Array.isArray(secure)) {
-                            const safeOutput = cloneValue(raw);
+                            const safeOutput = cloneSecureToolOutput(raw);
                             extractSecure(safeOutput, secure, this.secure, false);
                             return safeOutput;
                         }
