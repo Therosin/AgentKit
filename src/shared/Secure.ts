@@ -195,6 +195,9 @@ export function resolveSecureInputs(
         if (!hasPath(target, path)) continue;
         const value = getPath(target, path);
         if (isSecureRef(value)) {
+            if (!store.has(value)) {
+                throw new Error('Secure reference is unavailable or expired.');
+            }
             const resolved = store.resolve(value);
             setPath(target, path, resolved);
         }

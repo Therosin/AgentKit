@@ -133,6 +133,14 @@ describe('resolveSecureInputs', () => {
         resolveSecureInputs(obj, ['password'], store);
         expect(obj.password).toBe('plain');
     });
+
+    test('rejects refs that are missing or expired', () => {
+        const store = new SecureStore();
+        const obj: any = { password: 'secure://missing' };
+        expect(() => resolveSecureInputs(obj, ['password'], store))
+            .toThrow('Secure reference is unavailable or expired.');
+        expect(obj.password).toBe('secure://missing');
+    });
 });
 
 describe('suppressSecure', () => {
