@@ -1,4 +1,20 @@
 export {
+    SecureStore,
+    type SecureCreateOptions,
+    type SecureEntry,
+    isSecureRef,
+    hasPath,
+    getPath,
+    setPath,
+    deletePath,
+    normalizeSecureSpec,
+    extractSecure,
+    resolveSecureInputs,
+    suppressSecure,
+    cloneValue,
+} from './src/shared/Secure';
+
+export {
     default,
     default as Agent,
     type AgentOptions,

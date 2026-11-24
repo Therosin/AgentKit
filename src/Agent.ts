@@ -1,5 +1,6 @@
 import Context, { ContextRegistry } from './shared/Context';
 import { TextTemplate } from './shared/TextTemplates';
+import { SecureStore, extractSecure, resolveSecureInputs, suppressSecure, cloneValue, hasPath, getPath, isSecureRef } from './shared/Secure';
 import { AgentProvider } from './AgentProvider';
 import {
     generateText,
@@ -31,6 +32,7 @@ export interface AgentRunOptions<TSchema extends z.ZodType | undefined = undefin
     schema?: TSchema;
     context?: Record<string, unknown>; // TextTemplate variables, not agent.context
     abortSignal?: AbortSignal;
+    secure?: string[];
 }
 
 type InferOutput<TSchema> = TSchema extends z.ZodType ? z.infer<TSchema> : string;
@@ -62,6 +64,36 @@ type StreamQueueItem<T> =
     | { kind: 'done' }
     | { kind: 'error'; error: unknown };
 
+function hasSecureStructuredOutput(options: AgentRunOptions<any>): boolean {
+    return Boolean(options.schema && Array.isArray(options.secure) && options.secure.length > 0);
+}
+
+function safeStructuredMessage(output: unknown): string {
+    try {
+        return JSON.stringify(output) ?? '';
+    } catch {
+        return '';
+    }
+}
+
+function redactStructuredOutputError(error: unknown): Error {
+    const safe = new Error('Structured output generation failed; raw output was withheld.');
+    if (error && typeof error === 'object' && typeof (error as { name?: unknown }).name === 'string') {
+        safe.name = (error as { name: string }).name;
+    }
+    return safe;
+}
+
+function cloneSecureToolOutput(value: unknown): unknown {
+    if (!value || typeof value !== 'object') return value;
+    try {
+        return structuredClone(value);
+    } catch {
+        // JSON serialization may invoke toJSON and change or omit secure paths.
+        throw new Error('Secure output could not be safely cloned.');
+    }
+}
+
 /** Merge concurrently consumed SDK streams without polling. */
 class AsyncEventQueue<T> {
     private readonly items: T[] = [];
@@ -85,6 +117,7 @@ export default class Agent {
     protected agent_settings: AgentSettings;
     protected readonly tools = new Map<string, AgentTool>();
     public readonly context = new Map<string, unknown>();
+    public readonly secure = new SecureStore();
 
     constructor(
         protected provider: AgentProvider,
@@ -177,22 +210,76 @@ export default class Agent {
         const registered = [...this.tools.entries()];
         const definitions: ToolSet = {};
 
+        // Match secure inputs to outputs with the same dot path. This gives
+        // the model the ordering information without hiding either tool.
+        const producersByPath = new Map<string, string[]>();
+        for (const [producerName, definition] of registered) {
+            const secure = (definition as any).secure;
+            if (!Array.isArray(secure)) continue;
+            for (const path of secure) {
+                if (typeof path !== 'string') continue;
+                const producers = producersByPath.get(path) ?? [];
+                producers.push(producerName);
+                producersByPath.set(path, producers);
+            }
+        }
+
         for (const [name, definition] of registered) {
-            const { available, validate, execute, ...sdkDefinition } = definition;
+            const { available, validate, execute, secure, secureInputs, outputSchema, ...sdkDefinition } = definition as any;
+            const inputProducers = new Map<string, string[]>();
+            if (Array.isArray(secureInputs)) {
+                for (const path of secureInputs) {
+                    if (typeof path !== 'string') continue;
+                    const producers = (producersByPath.get(path) ?? []).filter(producer => producer !== name);
+                    if (producers.length > 0) inputProducers.set(path, producers);
+                }
+            }
+
+            const dependencyNotes = [...inputProducers].map(([path, producers]) => {
+                const producerList = producers.map(producer => `"${producer}"`).join(', ');
+                return `The secure input "${path}" is produced by ${producerList}. Call a producer first, then call "${name}" with the secure:// reference from its result. Do not call the producer and this tool in the same turn.`;
+            });
+            const description = [sdkDefinition.description, ...dependencyNotes]
+                .filter((part): part is string => typeof part === 'string' && part.length > 0)
+                .join('\n\n');
 
             // Keep AI SDK metadata intact. Hook fields never go to the SDK.
             // The SDK invokes execute only after its own input-schema validation.
             definitions[name] = {
                 ...sdkDefinition,
+                ...(description ? { description } : {}),
+                ...(outputSchema ? { outputSchema } : {}),
                 ...(execute ? {
                     execute: async (input: unknown, options: any) => {
-                        if (available && !await available(this.context)) {
+                        if (available && !await available(this.context, this.secure)) {
                             throw new Error(`Tool "${name}" is unavailable.`);
                         }
-                        if (validate && !await validate(input, this.context)) {
+                        // Resolve secure refs on a copy. The SDK and stream
+                        // events may retain the original model-facing input.
+                        const resolvedInput = cloneValue(input);
+                        if (secureInputs && Array.isArray(secureInputs)) {
+                            for (const [path, producers] of inputProducers) {
+                                if (!hasPath(resolvedInput, path)) continue;
+                                const ref = getPath(resolvedInput, path);
+                                if (!isSecureRef(ref) || !this.secure.has(ref)) {
+                                    const producerList = producers.map(producer => `"${producer}"`).join(', ');
+                                    throw new Error(
+                                        `Tool "${name}" was not executed because secure input "${path}" is not ready. You must call ${producerList} first, then call "${name}" again with the secure:// reference returned by the producer. Do not report completion until "${name}" returns a result.`,
+                                    );
+                                }
+                            }
+                            resolveSecureInputs(resolvedInput, secureInputs, this.secure);
+                        }
+                        if (validate && !await validate(resolvedInput, this.context, this.secure)) {
                             throw new Error(`Tool "${name}" failed validation.`);
                         }
-                        return await execute(input, options);
+                        const raw = await execute(resolvedInput, { ...options, secure: this.secure });
+                        if (secure && Array.isArray(secure)) {
+                            const safeOutput = cloneSecureToolOutput(raw);
+                            extractSecure(safeOutput, secure, this.secure, false);
+                            return safeOutput;
+                        }
+                        return raw;
                     },
                 } : {}),
             } as ToolSet[string];
@@ -203,7 +290,7 @@ export default class Agent {
             active: async () => {
                 const active: string[] = [];
                 for (const [name, definition] of registered) {
-                    if (!definition.available || await definition.available(this.context)) {
+                    if (!definition.available || await definition.available(this.context, this.secure)) {
                         active.push(name);
                     }
                 }
@@ -218,21 +305,34 @@ export default class Agent {
     ): Promise<AgentRunResult<InferOutput<TSchema>>> {
         const message = await this.renderPrompt(prompt, options.context);
         const tools = this.prepareTools();
-        const response = await generateText({
-            model: this.model,
-            prompt: message,
-            tools: tools.definitions,
-            prepareStep: async () => ({ activeTools: await tools.active() }),
-            stopWhen: stepCountIs(this.agent_settings.maxSteps),
-            output: options.schema
-                ? Output.object({ schema: options.schema })
-                : Output.text(),
-            abortSignal: options.abortSignal,
-        });
+        let response;
+        try {
+            response = await generateText({
+                model: this.model,
+                prompt: message,
+                tools: tools.definitions,
+                prepareStep: async () => ({ activeTools: await tools.active() }),
+                stopWhen: stepCountIs(this.agent_settings.maxSteps),
+                output: options.schema
+                    ? Output.object({ schema: options.schema })
+                    : Output.text(),
+                abortSignal: options.abortSignal,
+            });
+        } catch (error) {
+            if (hasSecureStructuredOutput(options)) throw redactStructuredOutputError(error);
+            throw error;
+        }
+
+        let output: any = response.output;
+        if (options.schema && options.secure && Array.isArray(options.secure) && output && typeof output === 'object') {
+            extractSecure(output, options.secure, this.secure, false);
+        }
 
         return {
-            message: response.text,
-            output: response.output as InferOutput<TSchema>,
+            message: hasSecureStructuredOutput(options)
+                ? safeStructuredMessage(output)
+                : response.text,
+            output: output as InferOutput<TSchema>,
             usage: response.totalUsage,
             finishReason: response.finishReason,
         };
@@ -345,9 +445,16 @@ export default class Agent {
             const partialTask = options.schema
                 ? consume(async () => {
                     for await (const partial of response.partialOutputStream) {
+                        let data: any = partial;
+                        if (options.secure && Array.isArray(options.secure)) {
+                            // Suppress secure fields in partials until extraction complete.
+                            const cloned = cloneValue(partial);
+                            suppressSecure(cloned, options.secure);
+                            data = cloned;
+                        }
                         push({
                             kind: 'response:partial',
-                            data: partial as DeepPartial<TOutput>,
+                            data: data as DeepPartial<TOutput>,
                         });
                     }
                 })
@@ -372,17 +479,29 @@ export default class Agent {
                 response.finishReason,
             ]);
 
+            let finalOutput: any = output;
+            if (options.schema && options.secure && Array.isArray(options.secure) && finalOutput && typeof finalOutput === 'object') {
+                extractSecure(finalOutput, options.secure, this.secure, false);
+            }
+
             yield {
                 kind: 'response:finish',
                 result: {
-                    message: text,
-                    output: output as TOutput,
+                    message: hasSecureStructuredOutput(options)
+                        ? safeStructuredMessage(finalOutput)
+                        : text,
+                    output: finalOutput as TOutput,
                     usage,
                     finishReason,
                 },
             };
         } catch (error) {
-            yield { kind: 'response:error', error };
+            yield {
+                kind: 'response:error',
+                error: hasSecureStructuredOutput(options)
+                    ? redactStructuredOutputError(error)
+                    : error,
+            };
         }
     }
 

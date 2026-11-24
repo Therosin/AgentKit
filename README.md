@@ -1,23 +1,26 @@
-# agentkit
+# AgentKit
 
-To install dependencies:
+AgentKit is a TypeScript agent toolkit built on the Vercel AI SDK. The documentation source is in [`docs/`](./docs/).
 
-```bash
+## Development
+
+```sh
 bun install
+bun run typecheck
+bun run test:offline
+bun run build
 ```
 
-To run:
+The offline test suite does not contact an inference endpoint. End-to-end tests use Ollama:
 
-```bash
-bun run index.ts
+```sh
+bun run test:e2e
 ```
 
-To type check:
+## Documentation
 
-```bash
-bun check
+```sh
+bun run docs:dev
+bun run docs:build
+bun run docs:preview
 ```
-
-Run `bun fmt` to format the code.
-
-This project was created using `bun init` in bun v1.4.4. [Bun](https://bun.com) is a fast all-in-one JavaScript runtime.

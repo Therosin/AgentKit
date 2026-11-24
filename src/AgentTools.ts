@@ -1,4 +1,5 @@
 import type { Tool, ToolSet } from 'ai';
+import type { SecureStore } from './shared/Secure';
 
 /** Shared, mutable agent state. Predicates receive a read-only view. */
 export type AgentContext = ReadonlyMap<string, unknown>;
@@ -6,13 +7,20 @@ export type AgentContext = ReadonlyMap<string, unknown>;
 /** Extra lifecycle hooks for an otherwise ordinary AI SDK tool. */
 export interface AgentToolHooks<TInput = unknown> {
     /** Called before EVERY model step. False removes the tool from that step. */
-    available?: (context: AgentContext) => boolean | Promise<boolean>;
+    available?: (context: AgentContext, secure: SecureStore) => boolean | Promise<boolean>;
 
     /** Called after SDK input-schema validation, immediately before execute. */
     validate?: (
         input: TInput,
         context: AgentContext,
+        secure: SecureStore,
     ) => boolean | Promise<boolean>;
+
+    /** Dot-paths into the tool's returned value to extract as secure. */
+    secure?: string[];
+
+    /** Dot-paths into the tool's input to resolve secure refs before execute. */
+    secureInputs?: string[];
 }
 
 export type AgentTool<TInput = any, TOutput = any> =
