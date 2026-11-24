@@ -10,7 +10,7 @@ import Agent, {
 
 (globalThis as Record<string, unknown>).AI_SDK_LOG_WARNINGS = false;
 
-const OLLAMA_BASEURL = process.env.OLLAMA_BASEURL ?? 'http://192.168.0.100:11434/v1';
+const OLLAMA_BASEURL = process.env.OLLAMA_BASEURL ?? 'http://localhost:11434/v1';
 const OLLAMA_APIKEY = process.env.OLLAMA_APIKEY ?? 'local';
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL ?? 'llama3.2:latest';
 

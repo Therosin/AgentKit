@@ -30,9 +30,13 @@
     "build:types": "tsc --declaration --emitDeclarationOnly --noEmit false --outDir ./dist",
     "prepack": "bun run build",
     "test": "bun test ./tests",
-    "test:unit": "bun test ./tests/context.test.ts ./tests/text-templates.test.ts ./tests/provider.test.ts ./tests/agent.unit.test.ts",
-    "test:e2e": "bun test ./tests/agent.e2e.test.ts",
-    "typecheck": "bun check"
+    "test:unit": "bun test ./tests/context.test.ts ./tests/text-templates.test.ts ./tests/provider.test.ts ./tests/agent.unit.test.ts ./tests/secure.test.ts",
+    "test:offline": "bun run test:unit",
+    "test:e2e": "bun test ./tests/agent.e2e.test.ts ./tests/secure.e2e.test.ts",
+    "typecheck": "bun check",
+    "docs:dev": "vitepress dev docs --host 127.0.0.1",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs --host 127.0.0.1"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^3.0.94",
@@ -40,7 +44,8 @@
     "json-schema-to-typescript": "^16.0.0"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "vitepress": "^1.6.4"
   },
   "peerDependencies": {
     "typescript": "^7"

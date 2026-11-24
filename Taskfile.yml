@@ -23,6 +23,22 @@ tasks:
     cmds:
       - bun run test:unit
 
+  test:offline:
+    cmds:
+      - bun run test:offline
+
   test:e2e:
     cmds:
       - bun run test:e2e
+
+  docs:dev:
+    cmds:
+      - bun run docs:dev
+
+  docs:build:
+    cmds:
+      - bun run docs:build
+
+  docs:preview:
+    cmds:
+      - bun run docs:preview
