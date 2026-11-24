@@ -64,6 +64,26 @@ type StreamQueueItem<T> =
     | { kind: 'done' }
     | { kind: 'error'; error: unknown };
 
+function hasSecureStructuredOutput(options: AgentRunOptions<any>): boolean {
+    return Boolean(options.schema && Array.isArray(options.secure) && options.secure.length > 0);
+}
+
+function safeStructuredMessage(output: unknown): string {
+    try {
+        return JSON.stringify(output) ?? '';
+    } catch {
+        return '';
+    }
+}
+
+function redactStructuredOutputError(error: unknown): Error {
+    const safe = new Error('Structured output generation failed; raw output was withheld.');
+    if (error && typeof error === 'object' && typeof (error as { name?: unknown }).name === 'string') {
+        safe.name = (error as { name: string }).name;
+    }
+    return safe;
+}
+
 /** Merge concurrently consumed SDK streams without polling. */
 class AsyncEventQueue<T> {
     private readonly items: T[] = [];
@@ -245,7 +265,9 @@ export default class Agent {
                         }
                         const raw = await execute(resolvedInput, { ...options, secure: this.secure });
                         if (secure && Array.isArray(secure)) {
-                            extractSecure(raw, secure, this.secure, false);
+                            const safeOutput = cloneValue(raw);
+                            extractSecure(safeOutput, secure, this.secure, false);
+                            return safeOutput;
                         }
                         return raw;
                     },
@@ -273,17 +295,23 @@ export default class Agent {
     ): Promise<AgentRunResult<InferOutput<TSchema>>> {
         const message = await this.renderPrompt(prompt, options.context);
         const tools = this.prepareTools();
-        const response = await generateText({
-            model: this.model,
-            prompt: message,
-            tools: tools.definitions,
-            prepareStep: async () => ({ activeTools: await tools.active() }),
-            stopWhen: stepCountIs(this.agent_settings.maxSteps),
-            output: options.schema
-                ? Output.object({ schema: options.schema })
-                : Output.text(),
-            abortSignal: options.abortSignal,
-        });
+        let response;
+        try {
+            response = await generateText({
+                model: this.model,
+                prompt: message,
+                tools: tools.definitions,
+                prepareStep: async () => ({ activeTools: await tools.active() }),
+                stopWhen: stepCountIs(this.agent_settings.maxSteps),
+                output: options.schema
+                    ? Output.object({ schema: options.schema })
+                    : Output.text(),
+                abortSignal: options.abortSignal,
+            });
+        } catch (error) {
+            if (hasSecureStructuredOutput(options)) throw redactStructuredOutputError(error);
+            throw error;
+        }
 
         let output: any = response.output;
         if (options.schema && options.secure && Array.isArray(options.secure) && output && typeof output === 'object') {
@@ -291,7 +319,9 @@ export default class Agent {
         }
 
         return {
-            message: response.text,
+            message: hasSecureStructuredOutput(options)
+                ? safeStructuredMessage(output)
+                : response.text,
             output: output as InferOutput<TSchema>,
             usage: response.totalUsage,
             finishReason: response.finishReason,
@@ -447,14 +477,21 @@ export default class Agent {
             yield {
                 kind: 'response:finish',
                 result: {
-                    message: text,
+                    message: hasSecureStructuredOutput(options)
+                        ? safeStructuredMessage(finalOutput)
+                        : text,
                     output: finalOutput as TOutput,
                     usage,
                     finishReason,
                 },
             };
         } catch (error) {
-            yield { kind: 'response:error', error };
+            yield {
+                kind: 'response:error',
+                error: hasSecureStructuredOutput(options)
+                    ? redactStructuredOutputError(error)
+                    : error,
+            };
         }
     }
 

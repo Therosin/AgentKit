@@ -58,6 +58,17 @@ describe('SecureStore', () => {
         expect(store.has(ref)).toBe(false);
     });
 
+    test('required resolution preserves a stored undefined value', () => {
+        const store = new SecureStore();
+        const ref = store.create(undefined);
+        const target: any = { password: ref };
+
+        resolveSecureInputs(target, ['password'], store);
+
+        expect(target.password).toBeUndefined();
+        expect(store.has(ref)).toBe(true);
+    });
+
     test('clear empties store', () => {
         const store = new SecureStore();
         store.create('a');
@@ -106,6 +117,18 @@ describe('extractSecure', () => {
         extractSecure(obj, ['missing', 'a.b'], store);
         expect(obj).toEqual({ a: 1 });
         expect(store.size).toBe(0);
+    });
+
+    test('preserves existing secure references instead of wrapping them', () => {
+        const store = new SecureStore();
+        const ref = store.create('pw');
+        const obj: any = { password: ref };
+
+        extractSecure(obj, ['password', 'password'], store);
+
+        expect(obj.password).toBe(ref);
+        expect(store.size).toBe(1);
+        expect(store.get(ref)).toBe('pw');
     });
 
     test('non-object target no-op', () => {
@@ -189,6 +212,28 @@ describe('Tool integration via prepareTools', () => {
 
         const consumeResult = await (prepared.definitions.consume as any).execute({ password: ref }, {});
         expect(consumeResult.received).toBe('PPPP');
+    });
+
+    test('does not mutate a shared tool output while extracting secure fields', async () => {
+        const agent = new (class extends Agent {
+            public exposePrepareTools() { return this.prepareTools(); }
+        })(dummyProvider, { model: 'm' });
+        const sharedOutput = { password: 'cached-secret', status: 'ok' };
+        const producer = (tool as any)({
+            description: 'produce cached output',
+            inputSchema: z.object({}),
+            secure: ['password'],
+            execute: async () => sharedOutput,
+        });
+        agent.registerTools({ producer });
+
+        const prepared = agent.exposePrepareTools();
+        const result = await (prepared.definitions.producer as any).execute({}, {});
+
+        expect(sharedOutput).toEqual({ password: 'cached-secret', status: 'ok' });
+        expect(result).not.toBe(sharedOutput);
+        expect(result.password).toMatch(/^secure:\/\//);
+        expect(agent.secure.get(result.password)).toBe('cached-secret');
     });
 
     test('outputSchema preserved on tool def', () => {

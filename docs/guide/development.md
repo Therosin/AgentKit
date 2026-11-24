@@ -8,6 +8,7 @@ description: Set up AgentKit locally, run its checks, and work on the documentat
 ## Requirements
 
 - [Bun](https://bun.sh/) for installing dependencies, running tests, and serving the documentation.
+- Node.js for running the VitePress CLI used by the documentation scripts.
 - A reachable Ollama-compatible endpoint only for end-to-end tests.
 
 ## Set up the project
@@ -26,7 +27,15 @@ bun run test:offline
 bun run build
 ```
 
-End-to-end tests use the configured Ollama endpoint and model:
+End-to-end tests use these environment variables to select the Ollama-compatible endpoint and model:
+
+| Variable | Default |
+| --- | --- |
+| `OLLAMA_BASEURL` | `http://localhost:11434/v1` |
+| `OLLAMA_MODEL` | `llama3.2:latest` |
+| `OLLAMA_APIKEY` | `local` |
+
+Set them in the environment before running the suite when your endpoint or model differs from the defaults:
 
 ```sh
 bun run test:e2e

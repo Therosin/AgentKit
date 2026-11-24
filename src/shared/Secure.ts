@@ -74,6 +74,14 @@ export class SecureStore {
         return entry.value;
     }
 
+    /** Resolve a required reference, distinguishing stored `undefined` from a missing entry. */
+    resolveRequired(ref: string): unknown {
+        const entry = this.#entry(ref);
+        if (!entry) throw new Error('Secure reference is unavailable or expired.');
+        if (entry.once) this.#entries.delete(ref);
+        return entry.value;
+    }
+
     delete(ref: string): boolean {
         return this.#entries.delete(ref);
     }
@@ -180,6 +188,9 @@ export function extractSecure(
     for (const path of paths) {
         if (!hasPath(target, path)) continue;
         const value = getPath(target, path);
+        // A producer may return a secure reference from an earlier operation.
+        // Keep it intact rather than storing the reference as a new secret.
+        if (isSecureRef(value) && store.has(value)) continue;
         const ref = store.create(value, { once });
         setPath(target, path, ref);
     }
@@ -195,10 +206,7 @@ export function resolveSecureInputs(
         if (!hasPath(target, path)) continue;
         const value = getPath(target, path);
         if (isSecureRef(value)) {
-            if (!store.has(value)) {
-                throw new Error('Secure reference is unavailable or expired.');
-            }
-            const resolved = store.resolve(value);
+            const resolved = store.resolveRequired(value);
             setPath(target, path, resolved);
         }
     }

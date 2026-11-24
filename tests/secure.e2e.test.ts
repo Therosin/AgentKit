@@ -173,8 +173,31 @@ describe('Secure primitive E2E (Ollama)', () => {
         expect(res.output.username.toLowerCase()).toContain('demo');
         expect(typeof res.output.password).toBe('string');
         expect((res.output.password as string).startsWith('secure://')).toBe(true);
+        expect(res.message).not.toContain('abc123');
 
         const raw = agent.secure.take(res.output.password as string);
         expect(raw).toBe('abc123');
+    }, 30_000);
+
+    test('streamed structured output does not expose the secure field in its message', async () => {
+        const agent = makeAgent(4);
+        const Creds = z.object({ username: z.string(), password: z.string() });
+        const events = [];
+
+        for await (const event of agent.stream(
+            'Return JSON with username "demo" and password "stream-secret-123".',
+            { schema: Creds, secure: ['password'] },
+        )) {
+            events.push(event);
+        }
+
+        expect(JSON.stringify(events)).not.toContain('stream-secret-123');
+        const finish = events.at(-1);
+        expect(finish?.kind).toBe('response:finish');
+        if (finish?.kind === 'response:finish') {
+            expect(finish.result.message).not.toContain('stream-secret-123');
+            expect(finish.result.output.password).toMatch(/^secure:\/\//);
+            expect(agent.secure.take(finish.result.output.password)).toBe('stream-secret-123');
+        }
     }, 30_000);
 });
