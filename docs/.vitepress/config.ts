@@ -11,12 +11,24 @@ export default defineConfig({
     base,
     themeConfig: {
         nav: [
-            { text: 'Guide', link: '/guide/development' },
+            { text: 'Guides', link: '/guide/getting-started' },
             { text: 'GitHub', link: 'https://github.com/Therosin/AgentKit' },
         ],
         sidebar: [
             {
-                text: 'Project',
+                text: 'Build with AgentKit',
+                items: [
+                    { text: 'Make your first agent', link: '/guide/getting-started' },
+                    { text: 'Build a tool workflow', link: '/guide/tool-workflows' },
+                    { text: 'Keep values private', link: '/guide/secure-values' },
+                    { text: 'Ask for a typed answer', link: '/guide/structured-output' },
+                    { text: 'Show progress', link: '/guide/streaming' },
+                    { text: 'Personalize a prompt', link: '/guide/prompts-and-context' },
+                    { text: 'Choose a model provider', link: '/guide/models-and-providers' },
+                ],
+            },
+            {
+                text: 'Contribute',
                 items: [
                     { text: 'Development', link: '/guide/development' },
                 ],
