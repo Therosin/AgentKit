@@ -12,9 +12,11 @@
       "devDependencies": {
         "@types/bun": "latest",
         "vitepress": "^1.6.4",
+        "zod": "^4.1.8",
       },
       "peerDependencies": {
         "typescript": "^7",
+        "zod": "^3.25.76 || ^4.1.8",
       },
     },
   },

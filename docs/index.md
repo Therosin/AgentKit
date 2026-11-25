@@ -47,7 +47,7 @@ AgentKit does not decide what your tools should do. You write their `execute` fu
 
 ## Before you start
 
-You will need Bun or Node.js, a model provider compatible with the AI SDK, and the provider's model identifier. The first guide starts with a local Ollama example; you can swap in another OpenAI-compatible endpoint in [Models and providers](/guide/models-and-providers).
+You will need Bun, a model provider compatible with the AI SDK, and the provider's model identifier. The first guide starts with a local Ollama example; you can swap in another OpenAI-compatible endpoint in [Models and providers](/guide/models-and-providers).
 
 ## Working on AgentKit
 

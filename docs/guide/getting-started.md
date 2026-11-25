@@ -9,13 +9,13 @@ This example gives an agent a small catalog tool. Ask for a recommendation, and 
 
 ## Install the packages
 
-In a new project:
+In a new Bun project:
 
 ```sh
-bun add github:Therosin/AgentKit#main ai zod
+bun add github:Therosin/AgentKit#main
 ```
 
-This installs AgentKit directly from its GitHub `main` branch for now; the project is not yet published to npm or JSR. The `ai` package provides the `tool()` helper, and Zod describes the tool's input. Bun uses `#ref` to select a branch, tag, or commit for a GitHub dependency.
+This installs AgentKit directly from its GitHub `main` branch for now; the project is not yet published to npm or JSR. AgentKit declares its AI SDK and Zod requirements, so Bun installs them with the package. The `ai` package provides the `tool()` helper, and Zod describes the tool's input. Bun uses `#ref` to select a branch, tag, or commit for a GitHub dependency.
 
 ## Connect a model
 
