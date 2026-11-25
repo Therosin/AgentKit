@@ -29,9 +29,9 @@ console.log(result.output.ideas);
 
 The returned `output` is the typed object. You can pass it to another part of your app without first parsing a block of prose.
 
-## Keep a field out of the model-facing result
+## Return a reference instead of a raw value
 
-You can also mark fields in structured output as secure. AgentKit replaces those fields with references in the returned object and stores their values on the agent:
+You can mark fields in structured output as secure. The model generates these values, so the model provider receives them. AgentKit replaces the marked fields with references in the returned object and stores their values on the agent. With `stream()`, marked fields are also removed from partial output events before AgentKit emits them. This option does not hide generated values from the model or its provider:
 
 ```ts
 const Credentials = z.object({

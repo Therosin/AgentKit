@@ -13,22 +13,26 @@ Tools let the model ask your application to do something: search a catalog, chec
 import { tool } from "ai";
 import { z } from "zod";
 
+const findOrderTool = tool({
+  description: "Find an order by its public order number.",
+  inputSchema: z.object({ orderNumber: z.string() }),
+  execute: async ({ orderNumber }) => {
+    // Replace with a database or service lookup.
+    return { orderNumber, status: "in transit", eta: "Friday" };
+  },
+});
+
+const prepareReplyTool = tool({
+  description: "Prepare a short customer-support reply about an order.",
+  inputSchema: z.object({ status: z.string(), eta: z.string() }),
+  execute: async ({ status, eta }) => ({
+    draft: `Your order is ${status} and should arrive ${eta}.`,
+  }),
+});
+
 agent.registerTools({
-  find_order: tool({
-    description: "Find an order by its public order number.",
-    inputSchema: z.object({ orderNumber: z.string() }),
-    execute: async ({ orderNumber }) => {
-      // Replace with a database or service lookup.
-      return { orderNumber, status: "in transit", eta: "Friday" };
-    },
-  }),
-  prepare_reply: tool({
-    description: "Prepare a short customer-support reply about an order.",
-    inputSchema: z.object({ status: z.string(), eta: z.string() }),
-    execute: async ({ status, eta }) => ({
-      draft: `Your order is ${status} and should arrive ${eta}.`,
-    }),
-  }),
+  find_order: findOrderTool,
+  prepare_reply: prepareReplyTool,
 });
 
 const result = await agent.run(
@@ -96,12 +100,16 @@ Use `agent.context` to hold app state that tool availability checks need. The ho
 
 ## Register tools in groups
 
-You can register a toolset, a named tool, or a named group. For example:
+You can register a toolset, a named tool, or a named group. Since the earlier example already registered these tools on `agent`, unregister them before registering the same names as a group:
 
 ```ts
+agent.unregisterTools("find_order", "prepare_reply");
+
 agent.registerTools(
-  { find_order: findOrderTool },
-  { name: "support", tools: { prepare_reply: prepareReplyTool } },
+  { name: "support", tools: {
+    find_order: findOrderTool,
+    prepare_reply: prepareReplyTool,
+  } },
 );
 ```
 

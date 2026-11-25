@@ -12,10 +12,10 @@ This example gives an agent a small catalog tool. Ask for a recommendation, and 
 In a new project:
 
 ```sh
-bun add agentkit ai zod
+bun add github:Therosin/AgentKit#main ai zod
 ```
 
-AgentKit provides the agent and provider classes. The `ai` package provides the `tool()` helper, and Zod describes the tool's input.
+This installs AgentKit directly from its GitHub `main` branch for now; the project is not yet published to npm or JSR. The `ai` package provides the `tool()` helper, and Zod describes the tool's input. Bun uses `#ref` to select a branch, tag, or commit for a GitHub dependency.
 
 ## Connect a model
 

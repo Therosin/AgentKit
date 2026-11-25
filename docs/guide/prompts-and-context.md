@@ -65,7 +65,7 @@ Tool hooks receive the agent's live state as a read-only map, and your applicati
 ```ts
 agent.context.set("signedIn", true);
 
-const isSignedIn = agent.context.get<boolean>("signedIn");
+const isSignedIn = agent.context.get("signedIn") === true;
 ```
 
 For a complete availability example, see [Build a tool workflow](/guide/tool-workflows#make-a-tool-available-only-when-it-makes-sense).
